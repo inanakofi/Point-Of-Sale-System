@@ -1,0 +1,5 @@
+{
+  "name": "QikPOS AI",
+  "description": "A modern, React-based Point of Sale system inspired by QuickBooks POS, featuring AI-powered inventory management and sales analytics using the Gemini API.",
+  "requestFramePermissions": []
+}
