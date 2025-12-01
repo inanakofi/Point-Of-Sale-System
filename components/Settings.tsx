@@ -1,7 +1,6 @@
-
 import React, { useState, useRef } from 'react';
 import { StoreSettings, User, UserRole } from '../types';
-import { Save, UserPlus, Trash2, Edit2, Shield, Store, Users, CheckCircle, Database, Upload, Download, RefreshCw, AlertTriangle, FileText } from 'lucide-react';
+import { Save, UserPlus, Trash2, Edit2, Shield, Store, Users, CheckCircle, Database, Upload, Download, RefreshCw, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { getBackupData, restoreBackup, factoryReset } from '../services/storageService';
 
 interface SettingsProps {
@@ -30,6 +29,7 @@ const Settings: React.FC<SettingsProps> = ({
   // Data Management State
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,39 +66,51 @@ const Settings: React.FC<SettingsProps> = ({
     setIsUserModalOpen(false);
   };
 
-  const handleBackup = () => {
-    const data = getBackupData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `qikpos-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleBackup = async () => {
+    setIsLoading(true);
+    try {
+        const data = await getBackupData();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `qikpos-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        console.error(e);
+        alert('Failed to generate backup');
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsLoading(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         const result = event.target?.result as string;
-        if (restoreBackup(result)) {
+        const success = await restoreBackup(result);
+        if (success) {
             setRestoreStatus('Success! Reloading...');
             setTimeout(() => window.location.reload(), 1500);
         } else {
             setRestoreStatus('Error: Invalid backup file.');
+            setIsLoading(false);
         }
     };
     reader.readAsText(file);
   };
 
-  const handleReset = (includeDemo: boolean) => {
+  const handleReset = async (includeDemo: boolean) => {
       if(confirm(`Are you sure? This will DELETE ALL DATA and ${includeDemo ? 'reset to demo data' : 'leave the system empty'}. This cannot be undone.`)) {
-          factoryReset(includeDemo);
+          setIsLoading(true);
+          await factoryReset(includeDemo);
           window.location.reload();
       }
   };
@@ -311,13 +323,15 @@ const Settings: React.FC<SettingsProps> = ({
                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                      <Database size={20} className="text-emerald-600" />
                      Backup & Restore
+                     {isLoading && <Loader2 className="animate-spin text-slate-400" size={16}/>}
                  </h3>
                  <p className="text-sm text-slate-500 mb-6">Save your data locally or restore from a previous backup file.</p>
                  
                  <div className="space-y-4">
                      <button 
                         onClick={handleBackup}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors border border-indigo-200"
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors border border-indigo-200 disabled:opacity-50"
                      >
                          <Download size={18} />
                          Download Backup (JSON)
@@ -333,7 +347,8 @@ const Settings: React.FC<SettingsProps> = ({
                          />
                          <button 
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 text-slate-700 hover:bg-slate-100 rounded-lg font-medium transition-colors border border-slate-200"
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 text-slate-700 hover:bg-slate-100 rounded-lg font-medium transition-colors border border-slate-200 disabled:opacity-50"
                          >
                              <Upload size={18} />
                              Restore from File
@@ -358,7 +373,8 @@ const Settings: React.FC<SettingsProps> = ({
                  <div className="space-y-4">
                      <button 
                         onClick={() => handleReset(true)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-rose-600 hover:bg-rose-50 rounded-lg font-medium transition-colors border border-rose-200"
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-rose-600 hover:bg-rose-50 rounded-lg font-medium transition-colors border border-rose-200 disabled:opacity-50"
                      >
                          <RefreshCw size={18} />
                          Factory Reset (Demo Data)
@@ -366,7 +382,8 @@ const Settings: React.FC<SettingsProps> = ({
                      
                      <button 
                         onClick={() => handleReset(false)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-medium transition-colors shadow-lg shadow-rose-200"
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-medium transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
                      >
                          <Trash2 size={18} />
                          Factory Reset (Empty)
